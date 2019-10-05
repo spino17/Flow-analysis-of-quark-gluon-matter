@@ -1,2 +1,2 @@
 # Flow-analysis-of-quark-gluon-matter
-The repo deals with theoretical and numerical methods to analyse different modes of hydrodynamic collective flow particularly in quark-gluon plasma matter
+The repo deals with theoretical and numerical methods to analyse different modes of hydrodynamic collective flow particularly in quark-gluon plasma matter. The main aim is to construct multi-particle correlation measure to study the collective behavior in the hydrodynamization phase of quark-gluon matter and in turn explain critical exponents and phase diagrams of it (which can really unfold the mystery of early universe which dominently contained these kinds of matter phases). 
