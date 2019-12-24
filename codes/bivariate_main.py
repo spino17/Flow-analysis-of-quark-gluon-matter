@@ -22,6 +22,8 @@ def cross_entropy_loss(y_pred, y_true):
 
 
 def data_preprocessing(X, y, batch_size, validation_split=0.2):
+    X = torch.from_numpy(X).float()
+    y = torch.from_numpy(y).float()
     dataset = TensorDataset(X, y)
     batch_size = batch_size
     training_length = int(len(dataset) * (1 - validation_split))
@@ -33,7 +35,7 @@ def data_preprocessing(X, y, batch_size, validation_split=0.2):
     )
 
 
-def fit(train_loader, num_dim, val_loader, num_epochs, num_steps, learning_rate):
+def fit(train_loader, val_loader, num_dim, num_epochs, num_steps, learning_rate):
     """
     The dataset contains 2-D tensor where first dimension runs along batch and 
     second dimension runs along component of an indiviual data point. The y 
@@ -121,7 +123,31 @@ def fit(train_loader, num_dim, val_loader, num_epochs, num_steps, learning_rate)
             val_losses.append(val_loss / val_len)
             epochs.append(epoch_index)
 
-    print("training finished")
+    print("training finished !")
+    
+    return mean_coeff, cov_coeff, a, b
+    
+    
+def main():
+    # load the dataset
+    X = np.load("/data/x.npy")
+    y = np.load("/data/y.npy").reshape(-1, 1)
+    
+    # defining hyperparameters
+    batch_size = 100
+    validation_split = 0.2
+    num_dim = 2
+    num_epochs = 50
+    num_steps = 500
+    learning_rate = 0.1
+    
+    # prepare dataloader for optimization
+    train_loader, val_loader = data_preprocessing(X, y, batch_size, validation_split)
+    
+    # training the model
+    mean_coeff, cov_coeff, a, b = fit(train_loader, val_loader, num_dim, num_epochs, num_steps, learning_rate) 
+    
+    
+if __name__ == "__main__":
+    main()
 
-
-num_dim = 2  # number of dimensions
