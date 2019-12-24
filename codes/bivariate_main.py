@@ -11,7 +11,7 @@ def mean_squared_error(y_pred, y_true):
     """
     Used in the original paper
     
-    """   
+    """
     # TODO
     return 0
 
@@ -86,19 +86,41 @@ def fit(train_loader, num_dim, val_loader, num_epochs, num_steps, learning_rate)
     val_len = len(val_loader)
     for epoch_index in range(num_epochs):
         print("Epoch no. ", epoch_index)
-
+        train_loss = 0
+        val_loss = 0
         for x, y in train_loader:
             optimizer.zero_grad()
             batch_size = x.shape[0]
-            # x_repeat = ...
+            x_repeat = (
+                x.repeat(1, num_steps).view(-1, num_dim).view(batch_size, -1, num_dim)
+            )
             y_pred = (1 / num_steps) * torch.sum(torch.exp(p.log_prob(x_repeat)), dim=1)
-            loss = mean_squared_error(y_pred, y)
-            loss.backward()
-            optimizer.step()
+            loss = mean_squared_error(
+                y_pred, y
+            )  # loss function between predicted and true values
+            loss.backward()  # calculate gradients
+            optimizer.step()  # take a small step in the direction of gradient
             train_loss += loss.item()
-            
-        train_losses.append(train_loss / train_len)
-    
+        else:
+            with torch.no_grad():
+                # scope of no gradient calculations
+                for x, y in val_loader:
+                    batch_size = x.shape[0]
+                    x_repeat = (
+                        x.repeat(1, num_steps)
+                        .view(-1, num_dim)
+                        .view(batch_size, -1, num_dim)
+                    )
+                    y_pred = (1 / num_steps) * torch.sum(
+                        torch.exp(p.log_prob(x_repeat)), dim=1
+                    )
+                    loss = mean_squared_error(y_pred, y)
+                    val_loss += loss.item()
+
+            train_losses.append(train_loss / train_len)
+            val_losses.append(val_loss / val_len)
+            epochs.append(epoch_index)
+
     print("training finished")
 
 
