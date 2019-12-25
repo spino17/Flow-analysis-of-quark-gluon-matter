@@ -44,11 +44,13 @@ np.save("y.npy", final_values)
 # load the data from file
 c = np.load("x.npy")
 d = np.load("y.npy").reshape(-1, 1)
+s = np.sum(d)
+d = (1 / s) * d
 
 from mpl_toolkits import mplot3d
 
 ax = plt.axes(projection="3d")
-ax.plot3D(x, y, final_values, "gray")
+ax.plot3D(x.reshape(-1), y.reshape(-1), d.reshape(-1), "gray")
 
 fig = plt.figure(figsize=(6, 5))
 left, bottom, width, height = 0.1, 0.1, 0.8, 0.8

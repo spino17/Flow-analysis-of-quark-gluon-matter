@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from torch import nn
 import torch.optim as optim
+import matplotlib.pyplot as plt
 
 
 def gaussian_func(x, mean, cov_mat):
@@ -35,13 +36,19 @@ optimizer.zero_grad()
 z.backward()
 optimizer.step()
 
-loc = torch.tensor([[2.0, 3.0], [1000.0, 2000.0]], requires_grad=True)
+loc = torch.tensor([[2.0, 3.0, 5.0], [1000.0, 2000.0, 7000.0]], requires_grad=True)
 cov_mat = torch.tensor(
-    [[[1.0, 0.0], [0.0, 1.0]], [[1.0, 0.0], [0.0, 1.0]]], requires_grad=True
+    [
+        [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 0.1]],
+        [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 0.1]],
+    ],
+    requires_grad=True,
 )
 p = torch.distributions.multivariate_normal.MultivariateNormal(loc, cov_mat)
 r = p.sample()
 print(torch.exp(p.log_prob(r)))
+
+data = np.loadtxt("CorrelationData.txt", skiprows=1)
 
 
 print(gaussian_func(r.view(1, -1), loc.view(1, -1), cov_mat))
@@ -50,3 +57,16 @@ n = 11
 z = torch.arange(1, 2 * n - 1, 2)
 
 
+x = np.arange(0.1, 6.1, 0.2)
+y = np.arange(10, 5010, 20)
+
+xx, yy = np.meshgrid(x, y)
+
+plt.plot(xx, yy)
+
+
+x = torch.randn(3, 3)
+z = x * x
+optimizer = optim.Adam([x[0], x[1]])
+z.backward()
+optim.step()
