@@ -45,7 +45,26 @@ np.save("y.npy", final_values)
 c = np.load("x.npy")
 d = np.load("y.npy").reshape(-1, 1)
 s = np.sum(d)
-d = (1 / s) * d
+d = (1 / 1000) * d
+z = np.concatenate((c, d), 1)
+c = torch.from_numpy(c)
+c[:, 1] = c[:, 1] * (1 / 1000)
+d = torch.from_numpy(d)
+
+mean = torch.zeros(2)
+count = 0
+x_vec = []
+for i in range(75000):
+    if d[i][0] > 0:
+        mean += c[i]
+        print(c[i])
+        x_vec.append([c[i][0].item(), c[i][1].item()])
+        count += 1
+mean = (1 / count) * mean
+x_vec = torch.tensor(x_vec)
+central_vec = x_vec - mean
+cov_mat = (1 / count) * torch.mm(torch.transpose(central_vec, 0, 1), central_vec)
+
 
 from mpl_toolkits import mplot3d
 

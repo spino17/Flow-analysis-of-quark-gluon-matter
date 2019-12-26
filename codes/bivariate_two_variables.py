@@ -52,15 +52,15 @@ def fit(train_loader, val_loader, num_dim, num_epochs, num_steps, learning_rate)
     """
 
     # defining parameters of the model
-    mean_coeff = torch.randn(1, num_dim)
+    mean_coeff = torch.tensor([[2.6946, 1.9212303]], requires_grad=True)  # 2-D (N, E)
     lower_coeff = torch.randn(
-        int(num_dim * (num_dim + 1) / 2)
+        [1.3196, 0.9278, 0.2146], requires_grad=True
     )  # vectorized lower triangular matrix
-    a = torch.randn(3, 3)
+    # initial values of a and b are sampled from normal distribution with mean zero and covariance matrix one
+    a = torch.randn(3, 2)
     b = torch.randn(3, 1)
 
-    # declaring them as learnable parameters
-    mean_coeff.requires_grad = True
+    # setting parameters as learnable
     lower_coeff.requires_grad = True
     a.requires_grad = True
     b.requires_grad = True
@@ -73,8 +73,8 @@ def fit(train_loader, val_loader, num_dim, num_epochs, num_steps, learning_rate)
     c_b = (1 / (2 * num_steps)) * torch.arange(1, 2 * num_steps + 1, 2)
     c_b = c_b.view(-1, 1)
     c_matrix = torch.cat((c_b, c_b ** 2, c_b ** 3), 1)
-    a_matrix = torch.mm(c_matrix, a)
-    b_matrix = torch.mm(c_matrix, b)
+    a_matrix = torch.exp(torch.mm(c_matrix, a))
+    b_matrix = torch.exp(torch.mm(c_matrix, b))
 
     # forming lower triangular matrix
     lower_indices = torch.tril_indices(num_dim, num_dim)
@@ -82,21 +82,20 @@ def fit(train_loader, val_loader, num_dim, num_epochs, num_steps, learning_rate)
     lower_matrix[lower_indices[0], lower_indices[1]] = lower_coeff
 
     # defining batch multivariate normal distribution
-    mean = torch.mm(
-        a_matrix, mean_coeff
+    mean = a_matrix * mean_coeff.repeat(
+        num_steps, 1
     )  # batch mean along all values of c_b step varying from 0 to 1
-    cov_mat_l = (b_matrix * lower_matrix.view(1, -1)).view(
+
+    cov_coeff = torch.matmul(
+        lower_matrix, torch.transpose(lower_matrix, 1, 2)
+    )  # cholesky decomposition
+    cov_mat = (b_matrix * lower_matrix.view(1, -1)).view(
         -1, num_dim, num_dim
     )  # batch cholesky lower triangular matrix
-    cov_mat = torch.matmul(
-        cov_mat_l, torch.transpose(cov_mat_l, 1, 2)
-    )  # cholesky decomposition
     p = torch.distributions.multivariate_normal.MultivariateNormal(
         mean, cov_mat
-    )  # batch normal distribution
+    )  # batch normal distribution - takes all the distribution for different cb values together
 
-    print(mean[:10])
-    print(cov_mat[:10])
     # training loop
     train_losses, val_losses, epochs = [], [], []
     train_len = len(train_loader)
@@ -108,13 +107,12 @@ def fit(train_loader, val_loader, num_dim, num_epochs, num_steps, learning_rate)
         val_loss = 0
         batch_count = 0
         for x, y in train_loader:
-            N_total = torch.tensor(torch.sum(y))
+            N_total = torch.sum(y)  # total number for a batch
             optimizer.zero_grad()
             batch_size = x.shape[0]
             x_repeat = (
                 x.repeat(1, num_steps).view(-1, num_dim).view(batch_size, -1, num_dim)
             )
-            # print(p.log_prob(x_repeat))
             y_pred = (1 / num_steps) * torch.sum(
                 torch.exp(torch.add(p.log_prob(x_repeat), torch.log(N_total))), dim=1
             )
@@ -165,8 +163,8 @@ def fit(train_loader, val_loader, num_dim, num_epochs, num_steps, learning_rate)
 def main():
     # load the dataset
     X = np.load("data/x.npy")
-    X[:, 1] = X[:, 1] * (1 / 1000)
-    y = np.load("data/y.npy").reshape(-1, 1)  # in the unit of 1000
+    X[:, 1] = X[:, 1] * (1 / 1000)  # normalize the second column of the data
+    y = np.load("data/y.npy").reshape(-1, 1)
 
     # defining hyperparameters
     batch_size = 100
