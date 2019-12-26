@@ -40,15 +40,15 @@ def data_preprocessing(X, y, batch_size, validation_split=0.2):
 
 def fit(train_loader, val_loader, num_dim, num_epochs, num_steps, learning_rate):
     """
-    The dataset contains 2-D tensor where first dimension runs along batch and 
-    second dimension runs along component of an indiviual data point. The y 
+    The dataset contains 2-D tensor where first dimension runs along batch and
+    second dimension runs along component of an indiviual data point. The y
     contains the true value of histogram.
-    
+
     The optimization algorithm used here is Stochastic Gradient Descent (SGD)
-    and data is batched according to the batch_size. The gradients calculated 
+    and data is batched according to the batch_size. The gradients calculated
     at each epoch are thus a stochastic estimate of the gradient over the com-
     plete dataset.
-    
+
     """
 
     # defining parameters of the model
@@ -95,9 +95,9 @@ def fit(train_loader, val_loader, num_dim, num_epochs, num_steps, learning_rate)
         mean, cov_mat
     )  # batch normal distribution
 
+    print(mean[:10])
+    print(cov_mat[:10])
     # training loop
-    print(mean)
-    print(cov_mat)
     train_losses, val_losses, epochs = [], [], []
     train_len = len(train_loader)
     val_len = len(val_loader)
@@ -182,4 +182,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main()  # calling the main function
