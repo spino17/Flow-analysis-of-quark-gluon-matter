@@ -70,3 +70,12 @@ z = x * x
 optimizer = optim.Adam([x[0], x[1]])
 z.backward()
 optim.step()
+
+
+import torch
+
+n = 3
+a = torch.arange(n).unsqueeze(1)  # [n, 1]
+b = torch.ones(4).view(2, 2)  # [2, 2]
+
+a[:, :, None] * b  # [n, 2, 2]

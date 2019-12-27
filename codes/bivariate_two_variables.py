@@ -27,6 +27,7 @@ def cross_entropy_loss(y_pred, y_true):
 def data_preprocessing(X, y, batch_size, validation_split=0.2):
     X = torch.from_numpy(X).float()
     y = torch.from_numpy(y).float()
+    N_total = torch.sum(y)
     dataset = TensorDataset(X, y)
     batch_size = batch_size
     training_length = int(len(dataset) * (1 - validation_split))
@@ -35,10 +36,13 @@ def data_preprocessing(X, y, batch_size, validation_split=0.2):
     return (
         DataLoader(train_dataset, batch_size),
         DataLoader(validation_dataset, batch_size),
+        N_total,
     )
 
 
-def fit(train_loader, val_loader, num_dim, num_epochs, num_steps, learning_rate):
+def fit(
+    train_loader, val_loader, N_total, num_dim, num_epochs, num_steps, learning_rate
+):
     """
     The dataset contains 2-D tensor where first dimension runs along batch and
     second dimension runs along component of an indiviual data point. The y
@@ -53,28 +57,28 @@ def fit(train_loader, val_loader, num_dim, num_epochs, num_steps, learning_rate)
 
     # defining parameters of the model
     mean_coeff = torch.tensor([[2.6946, 1.9212303]], requires_grad=True)  # 2-D (N, E)
-    lower_coeff = torch.randn(
+    lower_coeff = torch.tensor(
         [1.3196, 0.9278, 0.2146], requires_grad=True
     )  # vectorized lower triangular matrix
     # initial values of a and b are sampled from normal distribution with mean zero and covariance matrix one
-    a = torch.randn(3, 2)
-    b = torch.randn(3, 1)
-
-    # setting parameters as learnable
-    lower_coeff.requires_grad = True
-    a.requires_grad = True
-    b.requires_grad = True
+    a = torch.tensor([[0.0, 0.0], [0.0, 0.0], [0.0, 0.0]], requires_grad=True)
+    b = torch.tensor([[0.0], [0.0], [0.0]], requires_grad=True)
 
     # setting up the optimizer
     parameters = [mean_coeff, lower_coeff, a, b]
     optimizer = optim.Adam(parameters, learning_rate)
 
+    c_b = (1 / (2 * num_steps)) * torch.arange(1, 2 * num_steps + 1, 2)
+    c_b = c_b.view(-1, 1)
+    c_matrix = torch.cat((c_b, c_b ** 2, c_b ** 3), 1)
+
+    """
     # mean and cov_mat batches calculations - mid point riemannian sum
     c_b = (1 / (2 * num_steps)) * torch.arange(1, 2 * num_steps + 1, 2)
     c_b = c_b.view(-1, 1)
     c_matrix = torch.cat((c_b, c_b ** 2, c_b ** 3), 1)
-    a_matrix = torch.exp(torch.mm(c_matrix, a))
-    b_matrix = torch.exp(torch.mm(c_matrix, b))
+    a_matrix = torch.exp(torch.mm(c_matrix, -1 * a))
+    b_matrix = torch.exp(torch.mm(c_matrix, -1 * b))
 
     # forming lower triangular matrix
     lower_indices = torch.tril_indices(num_dim, num_dim)
@@ -87,14 +91,13 @@ def fit(train_loader, val_loader, num_dim, num_epochs, num_steps, learning_rate)
     )  # batch mean along all values of c_b step varying from 0 to 1
 
     cov_coeff = torch.matmul(
-        lower_matrix, torch.transpose(lower_matrix, 1, 2)
+        lower_matrix, torch.transpose(lower_matrix, 0, 1)
     )  # cholesky decomposition
-    cov_mat = (b_matrix * lower_matrix.view(1, -1)).view(
-        -1, num_dim, num_dim
-    )  # batch cholesky lower triangular matrix
+    cov_mat = b_matrix[:, :, None] * cov_coeff
     p = torch.distributions.multivariate_normal.MultivariateNormal(
         mean, cov_mat
     )  # batch normal distribution - takes all the distribution for different cb values together
+    """
 
     # training loop
     train_losses, val_losses, epochs = [], [], []
@@ -106,13 +109,35 @@ def fit(train_loader, val_loader, num_dim, num_epochs, num_steps, learning_rate)
         train_loss = 0
         val_loss = 0
         batch_count = 0
+
         for x, y in train_loader:
-            N_total = torch.sum(y)  # total number for a batch
+            # mean and cov_mat batches calculations - mid point riemannian sum
+            a_matrix = torch.exp(torch.mm(c_matrix, -1 * a))
+            b_matrix = torch.exp(torch.mm(c_matrix, -1 * b))
+
+            # forming lower triangular matrix
+            lower_indices = torch.tril_indices(num_dim, num_dim)
+            lower_matrix = torch.zeros((num_dim, num_dim))
+            lower_matrix[lower_indices[0], lower_indices[1]] = lower_coeff
+
+            # defining batch multivariate normal distribution
+            mean = a_matrix * mean_coeff.repeat(
+                num_steps, 1
+            )  # batch mean along all values of c_b step varying from 0 to 1
+
+            cov_coeff = torch.matmul(
+                lower_matrix, torch.transpose(lower_matrix, 0, 1)
+            )  # cholesky decomposition
+            cov_mat = b_matrix[:, :, None] * cov_coeff
+            p = torch.distributions.multivariate_normal.MultivariateNormal(
+                mean, cov_mat
+            )  # batch normal distribution - takes all the distribution for different cb values together
             optimizer.zero_grad()
             batch_size = x.shape[0]
             x_repeat = (
                 x.repeat(1, num_steps).view(-1, num_dim).view(batch_size, -1, num_dim)
             )
+            # print(p.log_prob(x_repeat))
             y_pred = (1 / num_steps) * torch.sum(
                 torch.exp(torch.add(p.log_prob(x_repeat), torch.log(N_total))), dim=1
             )
@@ -134,7 +159,8 @@ def fit(train_loader, val_loader, num_dim, num_epochs, num_steps, learning_rate)
                         .view(batch_size, -1, num_dim)
                     )
                     y_pred = (1 / num_steps) * torch.sum(
-                        torch.exp(p.log_prob(x_repeat)), dim=1
+                        torch.exp(torch.add(p.log_prob(x_repeat), torch.log(N_total))),
+                        dim=1,
                     )
                     loss = mean_squared_error(y_pred, y)
                     val_loss += loss.item()
@@ -146,10 +172,6 @@ def fit(train_loader, val_loader, num_dim, num_epochs, num_steps, learning_rate)
                 "Train loss: %.2f - Val loss: %.2f"
                 % (train_loss / train_len, val_loss / val_len)
             )
-            print(mean_coeff.grad)
-            print(lower_coeff.grad)
-            print(a.grad)
-            print(b.grad)
 
     print("Training finished !")
 
@@ -170,16 +192,18 @@ def main():
     batch_size = 100
     validation_split = 0.2
     num_dim = 2
-    num_epochs = 1
+    num_epochs = 2
     num_steps = 500
     learning_rate = 0.1
 
     # prepare dataloader for optimization
-    train_loader, val_loader = data_preprocessing(X, y, batch_size, validation_split)
+    train_loader, val_loader, N_total = data_preprocessing(
+        X, y, batch_size, validation_split
+    )
 
     # training the model
     mean_coeff, cov_coeff, a, b = fit(
-        train_loader, val_loader, num_dim, num_epochs, num_steps, learning_rate
+        train_loader, val_loader, N_total, num_dim, num_epochs, num_steps, learning_rate
     )
 
 
