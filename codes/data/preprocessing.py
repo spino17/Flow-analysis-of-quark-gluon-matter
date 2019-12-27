@@ -89,3 +89,12 @@ plt.title("Contour Plot")
 plt.xlabel("x (cm)")
 plt.ylabel("y (cm)")
 plt.show()
+
+
+l = []
+for i in range(75000):
+    if d[i][0] > 0:
+        l.append([c[i][0].item(), c[i][1].item(), d[i][0].item()])
+
+l = torch.tensor(l)
+np.save("data.npy", l)

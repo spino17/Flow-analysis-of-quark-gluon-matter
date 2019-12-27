@@ -72,33 +72,6 @@ def fit(
     c_b = c_b.view(-1, 1)
     c_matrix = torch.cat((c_b, c_b ** 2, c_b ** 3), 1)
 
-    """
-    # mean and cov_mat batches calculations - mid point riemannian sum
-    c_b = (1 / (2 * num_steps)) * torch.arange(1, 2 * num_steps + 1, 2)
-    c_b = c_b.view(-1, 1)
-    c_matrix = torch.cat((c_b, c_b ** 2, c_b ** 3), 1)
-    a_matrix = torch.exp(torch.mm(c_matrix, -1 * a))
-    b_matrix = torch.exp(torch.mm(c_matrix, -1 * b))
-
-    # forming lower triangular matrix
-    lower_indices = torch.tril_indices(num_dim, num_dim)
-    lower_matrix = torch.zeros((num_dim, num_dim))
-    lower_matrix[lower_indices[0], lower_indices[1]] = lower_coeff
-
-    # defining batch multivariate normal distribution
-    mean = a_matrix * mean_coeff.repeat(
-        num_steps, 1
-    )  # batch mean along all values of c_b step varying from 0 to 1
-
-    cov_coeff = torch.matmul(
-        lower_matrix, torch.transpose(lower_matrix, 0, 1)
-    )  # cholesky decomposition
-    cov_mat = b_matrix[:, :, None] * cov_coeff
-    p = torch.distributions.multivariate_normal.MultivariateNormal(
-        mean, cov_mat
-    )  # batch normal distribution - takes all the distribution for different cb values together
-    """
-
     # training loop
     train_losses, val_losses, epochs = [], [], []
     train_len = len(train_loader)
@@ -137,7 +110,7 @@ def fit(
             x_repeat = (
                 x.repeat(1, num_steps).view(-1, num_dim).view(batch_size, -1, num_dim)
             )
-            # print(p.log_prob(x_repeat))
+
             y_pred = (1 / num_steps) * torch.sum(
                 torch.exp(torch.add(p.log_prob(x_repeat), torch.log(N_total))), dim=1
             )
@@ -182,30 +155,31 @@ def fit(
     return mean_coeff, lower_coeff, a, b
 
 
-def main():
-    # load the dataset
-    X = np.load("data/x.npy")
-    X[:, 1] = X[:, 1] * (1 / 1000)  # normalize the second column of the data
-    y = np.load("data/y.npy").reshape(-1, 1)
+# MAIN FUNCTION
 
-    # defining hyperparameters
-    batch_size = 100
-    validation_split = 0.2
-    num_dim = 2
-    num_epochs = 2
-    num_steps = 500
-    learning_rate = 0.1
+# load the dataset
+# X = np.load("data/x.npy")
+# X[:, 1] = X[:, 1] * (1 / 1000)  # normalize the second column of the data
+# y = np.load("data/y.npy").reshape(-1, 1)
+data = np.load("data/data.npy")
+X = data[:, :-1]
+y = data[:, 2].reshape(-1, 1)
+X[:, 1] = X[:, 1] * (1 / 1000)
 
-    # prepare dataloader for optimization
-    train_loader, val_loader, N_total = data_preprocessing(
-        X, y, batch_size, validation_split
-    )
+# defining hyperparameters
+batch_size = 100
+validation_split = 0.2
+num_dim = 2
+num_epochs = 2
+num_steps = 500
+learning_rate = 0.1
 
-    # training the model
-    mean_coeff, cov_coeff, a, b = fit(
-        train_loader, val_loader, N_total, num_dim, num_epochs, num_steps, learning_rate
-    )
+# prepare dataloader for optimization
+train_loader, val_loader, N_total = data_preprocessing(
+    X, y, batch_size, validation_split
+)
 
-
-if __name__ == "__main__":
-    main()  # calling the main function
+# training the model
+mean_coeff, cov_coeff, a, b = fit(
+    train_loader, val_loader, N_total, num_dim, num_epochs, num_steps, learning_rate
+)
